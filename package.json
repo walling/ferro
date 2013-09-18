@@ -1,0 +1,7 @@
+{
+	"name": "err.js",
+	"version": "0.1.0",
+	"dependencies": {
+		"stack-chain": "0.3.x"
+	}
+}
