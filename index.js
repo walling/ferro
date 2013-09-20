@@ -114,7 +114,7 @@ Object.defineProperty(Error.prototype, 'toJSON', {
 			self.error_description = '' + this.message;
 		}
 
-		var cause = this.cause instanceof Error ? this.cause : null;
+		var cause = typeof(this.cause) === 'object' ? this.cause : null;
 
 		var data = null;
 		for (var property in this) {
@@ -144,17 +144,19 @@ Object.defineProperty(Error.prototype, 'toJSON', {
 	}
 });
 
-function ErrJS(message) {
+function Ferro(message) {
 	Error.apply(this, arguments);
-	Object.defineProperty(this, 'message', {
-		writable: true,
-		value: message
-	});
+	this.message = message;
 }
-inheritError(ErrJS, Error);
+inheritError(Ferro, Error);
+Ferro.prototype.toString = function() {
+	var name = ('' + [this.name]) || 'Ferro';
+	var message = '' + [this.message];
+	return '[' + name + (message ? ': ' + message : '') + ']';
+};
 
 var classes = {
-	ErrJS: ErrJS,
+	Ferro: Ferro,
 	Error: Error,
 	EvalError: EvalError,
 	RangeError: RangeError,
@@ -165,29 +167,37 @@ var classes = {
 };
 
 function getClass(name) {
+	name = ('' + [name]) || 'Error';
 	var ErrorClass = classes[name];
 	if (!ErrorClass) {
 		var code =
 			'return function ' + name + '(message) {\n' +
-			'\tErrJS.apply(this, arguments);\n' +
+			'\tFerro.apply(this, arguments);\n' +
 			'};';
-		classes[name] = ErrorClass = new Function('ErrJS', code)(ErrJS);
-		inheritError(ErrorClass, ErrJS);
+		classes[name] = ErrorClass = new Function('Ferro', code)(Ferro);
+		inheritError(ErrorClass, Ferro);
 	}
 	return ErrorClass;
 }
 
 function createError(name, params) {
+	var message;
 	if (typeof(params) === 'string') {
-		params = { message: params };
+		message = params;
+		params = undefined;
+	}
+	if (params && 'message' in params) {
+		message = ('' + [params.message]) || undefined;
+		params = util._extend({}, params);
+		delete params.message;
 	}
 
 	var ErrorClass = getClass(name);
-	var error = new ErrorClass();
+	var error = message ? new ErrorClass(message) : new ErrorClass();
 	util._extend(error, params);
 	return error;
 }
 
-var errjs = createError;
-errjs.getClass = getClass;
-module.exports = errjs;
+var ferro = createError;
+ferro.getClass = getClass;
+module.exports = ferro;

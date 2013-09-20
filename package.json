@@ -1,7 +1,9 @@
 {
-	"name": "err.js",
+	"name": "ferro",
 	"version": "0.1.0",
-	"dependencies": {
-		"stack-chain": "0.3.x"
+	"description": "Ferocious Error Handling",
+	"repository": {
+		"type": "git",
+		"url": "http://github.com/walling/ferro.git"
 	}
 }
