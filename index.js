@@ -1,5 +1,8 @@
 
+require('tinycolor');
 var util = require('util');
+var pkgLookup = require('package-lookup');
+var nodeVersion = process.version.replace(/^v/, '');
 
 function underscoreName(identifier) {
 	return identifier.replace(/[A-Z][a-z]+/g, function(part) {
@@ -11,6 +14,25 @@ function inheritError(Child, Parent) {
 	Child.prototype = new Parent();
 	Object.defineProperty(Child.prototype, 'constructor', { value: Child });
 	Object.defineProperty(Child.prototype, 'name', { value: Child.name });
+}
+
+function lookupPackage(filename) {
+	if (/^\//.test(filename)) {
+		var pkg = pkgLookup.resolve(filename);
+		if (pkg) {
+			return {
+				name: ('' + [pkg.name]) || null,
+				version: ('' + [pkg.version]) || null,
+				_dirname: ('' + [pkg._dirname]) || null
+			};
+		}
+	} else if (filename) {
+		return {
+			name: 'node',
+			version: nodeVersion
+		};
+	}
+	return null;
 }
 
 function originJSON(origin) {
@@ -27,16 +49,26 @@ function originJSON(origin) {
 			}
 		}
 
-		return {
+		var nestedOrigin = originJSON(matches[2]);
+		var result = {
 			invocation: invocation,
 			name: name,
-			origin: originJSON(matches[2])
+			origin: null
 		};
+
+		if (nestedOrigin.invocation) {
+			result.origin = nestedOrigin;
+		} else {
+			result = util._extend(result, nestedOrigin);
+		}
+
+		return result;
 	}
 
 	matches = origin.match(/^(.+):(\d+):(\d+)$/);
 	if (matches) {
 		return {
+			pkg: lookupPackage(matches[1]),
 			filename: matches[1],
 			line: matches[2] | 0,
 			column: matches[3] | 0
@@ -94,6 +126,7 @@ function frameJSON(frame) {
 	}
 
 	return {
+		pkg: lookupPackage(filename),
 		invocation: invocation,
 		name: typeName,
 		filename: filename,
@@ -198,6 +231,144 @@ function createError(name, params) {
 	return error;
 }
 
+function formatJSONOrigin(origin) {
+	var text = '';
+
+	if (origin.origin) {
+		if (origin.origin.invocation) {
+			text = origin.origin.invocation + ' at ' +
+				(origin.origin.name || '<anonymous>');
+		}
+		text += ' (' + formatJSONOrigin(origin.origin) + ')';
+	}
+
+	if (origin.filename !== undefined) {
+		if (text) {
+			text += ', ';
+		}
+
+		var filename = '' + [origin.filename];
+		var pkg = origin.pkg;
+		if (pkg &&
+				pkg._dirname &&
+				pkg._dirname.length < filename.length &&
+				filename.substring(0, pkg._dirname.length) === pkg._dirname) {
+			filename = filename.substring(pkg._dirname.length);
+		}
+
+		if (pkg) {
+			text += pkg.name + '@' + pkg.version + ' ';
+		}
+
+		text += filename || '<anonymous>';
+		if (origin.line) {
+			text += ':' + origin.line;
+			if (origin.column) {
+				text += ':' + origin.column;
+			}
+		}
+	}
+
+	return text;
+}
+
+function formatJSONStack(frames, options) {
+	return frames.map(function(frame) {
+		var filename = frame.filename;
+		var pkg = frame.pkg;
+		if (pkg &&
+				pkg._dirname &&
+				pkg._dirname.length < filename.length &&
+				filename.substring(0, pkg._dirname.length) === pkg._dirname) {
+			filename = filename.substring(pkg._dirname.length);
+		}
+		return '    at' +
+			(frame.name ? (' ' + frame.name).yellow : '') + ' ' +
+			((frame.name ? '(' : '') +
+				formatJSONOrigin(frame) +
+				(frame.name ? ')' : '')).grey;
+	}).join('\n');
+}
+
+function formatStack(error, options) {
+	var isArray = Array.isArray(error);
+	var data = util._extend(isArray ? [] : {}, error);
+	var name;
+	var message;
+	var stack = '';
+
+	if (error instanceof Error) {
+		delete data.name;
+		delete data.message;
+		name = error.name;
+		message = error.message;
+		stack = error.toJSON().error_stack;
+		if (Array.isArray(stack)) {
+			stack = formatJSONStack(stack, options);
+		} else {
+			stack = '' + [error.stack];
+			var stackFirstAt = stack.match(/\n.* +at +/);
+			if (stackFirstAt) {
+				stack = stack.substring(stackFirstAt.index + 1);
+			}
+		}
+	} else if (typeof(error) === 'object') {
+		if (error.error) {
+			name = error.error;
+			delete data.error;
+		} else if (error.name) {
+			name = error.name;
+			delete data.name;
+		}
+
+		if (error.error_description) {
+			message = error.error_description;
+			delete data.error_description;
+		} else if (error.message) {
+			message = error.message;
+			delete data.message;
+		}
+
+		name = name || (isArray ? 'Error array' : 'Error object');
+		if (isArray && data.length === 0) {
+			data = null;
+		}
+	} else {
+		name = 'Error value';
+		message = '' + error;
+		data = null;
+	}
+
+	var cause = data.cause;
+	if (typeof(cause) === 'object') {
+		delete data.cause;
+	} else {
+		cause = null;
+	}
+
+	name = ('' + [name]).trim() || 'Error object';
+	message = ('' + [message]).trim();
+	if (message) {
+		name += ': ';
+	}
+
+	var text = name.cyan + (message ? message.bold : '');
+	if (data) {
+		data = util.format(data);
+		if (data !== '{}') {
+			text += '\n' + data.replace(/^/mg, '    ').grey;
+		}
+	}
+	if (stack) {
+		text += '\n' + stack;
+	}
+	if (cause) {
+		text += '\ncaused by ' + formatStack(cause, options);
+	}
+	return text;
+}
+
 var ferro = createError;
 ferro.getClass = getClass;
+ferro.stack = formatStack;
 module.exports = ferro;
