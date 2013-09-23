@@ -1,5 +1,8 @@
 
-require('tinycolor');
+if (typeof(''.bgDefault) !== 'function') {
+	require('tinycolor');
+}
+
 var util = require('util');
 var pkgLookup = require('package-lookup');
 var nodeVersion = process.version.replace(/^v/, '');
@@ -151,8 +154,10 @@ Object.defineProperty(Error.prototype, 'toJSON', {
 
 		var data = null;
 		for (var property in this) {
-			if (!(property === 'name' || property === 'message' ||
-					(property === 'cause' && cause))) {
+			if (!((property === 'cause' && cause) ||
+					property === 'name' ||
+					property === 'message' ||
+					property === 'stack')) {
 				var value = this[property];
 				if (typeof(value) !== 'function') {
 					data = data || {};
@@ -164,7 +169,7 @@ Object.defineProperty(Error.prototype, 'toJSON', {
 			self.error_data = data;
 		}
 
-		if (cause) {
+		if (cause && typeof(cause.toJSON) === 'function') {
 			self.error_cause = cause.toJSON();
 		}
 
@@ -296,6 +301,7 @@ function formatStack(error, options) {
 	var name;
 	var message;
 	var stack = '';
+	var stackFirstAt;
 
 	if (error instanceof Error) {
 		delete data.name;
@@ -307,7 +313,7 @@ function formatStack(error, options) {
 			stack = formatJSONStack(stack, options);
 		} else {
 			stack = '' + [error.stack];
-			var stackFirstAt = stack.match(/\n.* +at +/);
+			stackFirstAt = stack.match(/\n.* +at +/);
 			if (stackFirstAt) {
 				stack = stack.substring(stackFirstAt.index + 1);
 			}
@@ -332,6 +338,17 @@ function formatStack(error, options) {
 		name = name || (isArray ? 'Error array' : 'Error object');
 		if (isArray && data.length === 0) {
 			data = null;
+		}
+
+		if (typeof(error.stack) === 'string') {
+			stack = '' + [error.stack];
+			stackFirstAt = stack.match(/\n.* +at +/);
+			if (stackFirstAt) {
+				stack = stack.substring(stackFirstAt.index + 1);
+				delete data.stack;
+			} else {
+				stack = '';
+			}
 		}
 	} else {
 		name = 'Error value';
