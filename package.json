@@ -1,6 +1,6 @@
 {
 	"name": "ferro",
-	"version": "0.2.2",
+	"version": "0.2.3",
 	"description": "Ferocious Error Handling",
 	"repository": {
 		"type": "git",
@@ -9,5 +9,6 @@
 	"dependencies": {
 		"tinycolor": "0.0.1",
 		"package-lookup": "0.1.x"
-	}
+	},
+	"license": "MIT"
 }
