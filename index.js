@@ -1,11 +1,16 @@
 
-if (typeof(''.bgDefault) !== 'function') {
-	require('tinycolor');
-}
-
-var util = require('util');
-var pkgLookup = require('package-lookup');
 var nodeVersion = process.version.replace(/^v/, '');
+var pkgLookup = require('package-lookup');
+var chalk = require('chalk');
+var util = require('util');
+
+var style = {
+	errorName: chalk.cyan,
+	errorMessage: chalk.bold,
+	errorData: chalk.grey,
+	stackTypeName: chalk.yellow,
+	stackFileName: chalk.grey
+};
 
 function underscoreName(identifier) {
 	return identifier.replace(/[A-Z][a-z]+/g, function(part) {
@@ -288,10 +293,10 @@ function formatJSONStack(frames, options) {
 			filename = filename.substring(pkg._dirname.length);
 		}
 		return '    at' +
-			(frame.name ? (' ' + frame.name).yellow : '') + ' ' +
-			((frame.name ? '(' : '') +
+			(frame.name ? style.stackTypeName(' ' + frame.name) : '') + ' ' +
+			style.stackFileName((frame.name ? '(' : '') +
 				formatJSONOrigin(frame) +
-				(frame.name ? ')' : '')).grey;
+				(frame.name ? ')' : ''));
 	}).join('\n');
 }
 
@@ -356,8 +361,8 @@ function formatStack(error, options) {
 		data = null;
 	}
 
-	var cause = data.cause;
-	if (typeof(cause) === 'object') {
+	var cause = data && data.cause;
+	if (cause && typeof(cause) === 'object') {
 		delete data.cause;
 	} else {
 		cause = null;
@@ -369,11 +374,11 @@ function formatStack(error, options) {
 		name += ': ';
 	}
 
-	var text = name.cyan + (message ? message.bold : '');
+	var text = style.errorName(name) + (message ? style.errorMessage(message) : '');
 	if (data) {
 		data = util.format(data);
 		if (data !== '{}') {
-			text += '\n' + data.replace(/^/mg, '    ').grey;
+			text += '\n' + style.errorData(data.replace(/^/mg, '    '));
 		}
 	}
 	if (stack) {
@@ -388,4 +393,5 @@ function formatStack(error, options) {
 var ferro = createError;
 ferro.getClass = getClass;
 ferro.stack = formatStack;
+ferro.style = style;
 module.exports = ferro;

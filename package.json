@@ -1,13 +1,13 @@
 {
 	"name": "ferro",
-	"version": "0.2.3",
+	"version": "0.3.0",
 	"description": "Ferocious Error Handling",
 	"repository": {
 		"type": "git",
 		"url": "http://github.com/walling/ferro.git"
 	},
 	"dependencies": {
-		"tinycolor": "0.0.1",
+		"chalk": "0.2.x",
 		"package-lookup": "0.1.x"
 	},
 	"license": "MIT"
